@@ -1,0 +1,171 @@
+/*
+ Example sketch for the PS4 Bluetooth library - developed by Kristian Lauszus
+ For more information visit my blog: http://blog.tkjelectronics.dk/ or
+ send me an e-mail:  kristianl@tkjelectronics.com
+ */
+
+#include <PS4BT.h>
+#include <usbhub.h>
+
+// Satisfy the IDE, which needs to see the include statment in the ino too.
+#ifdef dobogusinclude
+#include <spi4teensy3.h>
+#include <SPI.h>
+#endif
+
+USB Usb;
+//USBHub Hub1(&Usb); // Some dongles have a hub inside
+BTD Btd(&Usb); // You have to create the Bluetooth Dongle instance like so
+
+/* You can create the instance of the PS4BT class in two ways */
+// This will start an inquiry and then pair with the PS4 controller - you only have to do this once
+// You will need to hold down the PS and Share button at the same time, the PS4 controller will then start to blink rapidly indicating that it is in pairing mode
+PS4BT PS4(&Btd, PAIR);
+
+// After that you can simply create the instance like so and then press the PS button on the device
+//PS4BT PS4(&Btd);
+
+bool printAngle, printTouch;
+uint8_t oldL2Value, oldR2Value;
+const int valvePin4 = 8;
+const int valvePin3 = 7;
+const int valvePin2 = 6;
+const int valvePin1 = 5;
+
+int ledPin = LED_BUILTIN;
+int ledState = HIGH; // ledState used to set the LED
+unsigned long previousMillis = 0; // Stores solenoid toggle value
+const long interval = 1000; // Interval at which to toggle
+
+const unsigned long frequency_ms = 100; // pulse width for the relays
+const unsigned long deadband_ms = 20; // minimum pulse width that we will output
+unsigned long last_Lup_ms; // time of last up relay trigger
+unsigned long last_Ldown_ms; // time of last up relay trigger
+unsigned long last_Rup_ms; // time of last up relay trigger
+unsigned long last_Rdown_ms; // time of last up relay trigger
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(valvePin1, OUTPUT);
+  pinMode(valvePin2, OUTPUT);
+  pinMode(valvePin3, OUTPUT);
+  pinMode(valvePin4, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(valvePin1,HIGH);
+  digitalWrite(valvePin2,HIGH);
+  digitalWrite(valvePin3,HIGH);
+  digitalWrite(valvePin4,HIGH);
+  digitalWrite(ledPin,HIGH);
+#if !defined(__MIPSEL__)
+  while (!Serial); // Wait for serial port to connect - used on Leonardo, Teensy and other boards with built-in USB CDC serial connection
+#endif
+  if (Usb.Init() == -1) {
+    Serial.print(F("\r\nOSC did not start"));
+    while (1); // Halt
+  }
+  Serial.print(F("\r\nPS4 Bluetooth Library Started"));
+}
+void loop() {
+  Usb.Task();
+
+  unsigned long currentMillis = millis();
+
+  if (PS4.connected()) {
+    if (currentMillis - previousMillis >= interval) {
+      // save the last time you blinked the LED
+      previousMillis = currentMillis;
+  
+      // if the LED is off turn it on and vice-versa:
+      if (ledState == LOW) {
+        ledState = HIGH;
+      } else {
+        ledState = LOW;
+      }
+    }
+
+    // set the LED with the ledState of the variable:
+    digitalWrite(ledPin,ledState);      
+      int Lhaty = PS4.getAnalogHat(LeftHatY);
+      int Rhaty = PS4.getAnalogHat(RightHatY);
+
+// Begin Left Hat Loop
+      unsigned long Lup_ms = currentMillis - last_Lup_ms;
+      int pulse_Lup_ms = ((128 - Lhaty) * frequency_ms) / 128;
+ 
+      if (pulse_Lup_ms < 0)
+         pulse_Lup_ms = 0;
+
+      if (Lup_ms > frequency_ms && pulse_Lup_ms > deadband_ms)
+      {
+        // start a new up pulse
+        digitalWrite(valvePin1, LOW);
+        last_Lup_ms = currentMillis;
+        Lup_ms = 0;
+      }
+      if (Lup_ms > pulse_Lup_ms)
+      {
+        // stop the pulse
+        digitalWrite(valvePin1, HIGH);
+      }
+
+      unsigned long Ldown_ms = currentMillis - last_Ldown_ms;
+      int pulse_Ldown_ms = ((Lhaty - 128) * frequency_ms) / 128;
+ 
+      if (pulse_Ldown_ms < 0)
+         pulse_Ldown_ms = 0;
+
+      if (Ldown_ms > frequency_ms && pulse_Ldown_ms > deadband_ms)
+      {
+        // start a new up pulse
+        digitalWrite(valvePin2, LOW);
+        last_Ldown_ms = currentMillis;
+        Ldown_ms = 0;
+      }
+      if (Ldown_ms > pulse_Ldown_ms)
+      {
+        // stop the pulse
+        digitalWrite(valvePin2, HIGH);
+      }
+// End Left Hat Loop
+// Begin Right Hat Loop
+      unsigned long Rup_ms = currentMillis - last_Rup_ms;
+      int pulse_Rup_ms = ((128 - Rhaty) * frequency_ms) / 128;
+ 
+      if (pulse_Rup_ms < 0)
+         pulse_Rup_ms = 0;
+
+      if (Rup_ms > frequency_ms && pulse_Rup_ms > deadband_ms)
+      {
+        // start a new up pulse
+        digitalWrite(valvePin3, LOW);
+        last_Rup_ms = currentMillis;
+        Rup_ms = 0;
+      }
+      if (Rup_ms > pulse_Rup_ms)
+      {
+        // stop the pulse
+        digitalWrite(valvePin3, HIGH);
+      }
+
+      unsigned long Rdown_ms = currentMillis - last_Rdown_ms;
+      int pulse_Rdown_ms = ((Rhaty - 128) * frequency_ms) / 128;
+ 
+      if (pulse_Rdown_ms < 0)
+         pulse_Rdown_ms = 0;
+
+      if (Rdown_ms > frequency_ms && pulse_Rdown_ms > deadband_ms)
+      {
+        // start a new up pulse
+        digitalWrite(valvePin4, LOW);
+        last_Rdown_ms = currentMillis;
+        Rdown_ms = 0;
+      }
+      if (Rdown_ms > pulse_Rdown_ms)
+      {
+        // stop the pulse
+        digitalWrite(valvePin4, HIGH);
+      }
+// End Right Hat Loop
+
+  }
+}
